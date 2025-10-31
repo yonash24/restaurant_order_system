@@ -1,124 +1,173 @@
-#include "iostream"
+#include "Account.h"
+#include <iostream>
+#include <string>
 
-class Account
+Account::Account(std::string name, double initialBalance)
+    : ownerName(name), 
+      balance(initialBalance), 
+      isActive(true), 
+      overdraftLimit(0.0), 
+      accountType("Standard") 
 {
-    private:
-        double balance;
-        std::string owner_name;
-        std::string account_type;
-        bool is_active;
+    if (initialBalance < 0) {
+        balance = 0;
+    }
+    addTransactionToHistory("Account created. Initial balance: " + std::to_string(balance));
+}
 
-    public:
-        Account(double start_balance, std::string owner_name, std::string type, bool status)
-        {
-            this->balance = start_balance;
-            this->owner_name = owner_name;
-            this->account_type = type;
-            this->is_active = status;
-        }
+void Account::addTransactionToHistory(std::string transactionDetails) {
+    transactionHistory.push_back(transactionDetails);
+}
 
-        void deposit(double amount)
-        {
-            if (amount <= 0)
-            {
-                throw "cannot add a negative deposit";
-            }
-            else
-            {
-                this->balance += amount;
-            }
-        }
+bool Account::deposit(double amount) {
+    if (!isActive) return false;
+    if (amount <= 0) return false;
 
-        // withdra money from the bank account
-        bool withdraw(double amount)
-        {
-            if((this->balance - amount) < 0)
-            {
-                std::cout << "theres not anought money at the balance" << std::endl;
-                return false;
-            }
-            else
-            {
-                this->balance = this->balance-amount;
-            }
-            return true;
-        }
+    balance += amount;
+    addTransactionToHistory("Deposit: +" + std::to_string(amount));
+    return true;
+}
 
-        // return the bank account balance
-        double get_balance()
-        {
-            return this->balance;
-        }
+bool Account::withdraw(double amount) {
+    if (!isActive) return false;
+    if (!canWithdraw(amount)) {
+        addTransactionToHistory("Failed withdraw attempt: " + std::to_string(amount));
+        return false;
+    }
 
-        //return the owner name
-        std::string get_owner_name()
-        {
-            return this->owner_name;
-        }
+    balance -= amount;
+    addTransactionToHistory("Withdrawal: -" + std::to_string(amount));
+    return true;
+}
 
-        //set the bank account balance
-        void set_balance(double new_balance)
-        {
-            this->balance = new_balance;
-        }
+double Account::getBalance() const {
+    return balance;
+}
 
-        //set the owner name 
-        void set_owner_name(std::string new_owner_name)
-        {
-            this->owner_name = new_owner_name;
-        }
+std::string Account::getOwnerName() const {
+    return ownerName;
+}
 
-        //set the account type
-        void set_account_type(std::string type)
-        {
-            this->account_type = type;
-        }
+void Account::setOwnerName(std::string newName) {
+    this->ownerName = newName;
+}
 
-        //get the account type
-        std::string get_account_type()
-        {
-            return this->account_type;
-        }
+void Account::setAccountNumber(std::string num) {
+    this->accountNumber = num;
+}
 
-        //set the account status
-        void set_account_status(bool status)
-        {
-            this->is_active = status;
-        }
+std::string Account::getAccountNumber() const {
+    return accountNumber;
+}
 
-        //get the account status
-        bool get_account_status()
-        {
-            return this->is_active;
-        }
+void Account::setAccountType(std::string type) {
+    this->accountType = type;
+}
 
-        //close active account ensure hes not having any debts
-        //return the status of the account active or not
-        bool close_account()
-        {
-            if(this->balance < 0)
-            {
-                std::cout << "the account has negative balance cannot close it until it will be fixed" << std::endl;
-                return this->is_active;
-            }
-            else if(this->balance > 0)
-            {
-                std::cout << "there is balance of: " << this->balance << " in the account please contect us on how you want to receive it" << std::endl;
-                return this->is_active;
-            }
-            else
-            {
-                this->is_active = false;
-            }
-            return this->is_active;
-        }
+std::string Account::getAccountType() const {
+    return accountType;
+}
 
-        //reopen closed account
-        void reopen_account()
-        {
-            this->is_active = true;
-            std::cout << "account opened successfully";
-        }
+bool Account::closeAccount() {
+    if (balance != 0) {
+        return false; 
+    }
+    isActive = false;
+    addTransactionToHistory("Account closed.");
+    return true;
+}
 
-        
-};
+void Account::reopenAccount() {
+    isActive = true;
+    addTransactionToHistory("Account reopened.");
+}
+
+bool Account::isActive() const {
+    return isActive;
+}
+
+bool Account::transfer(Account& destinationAccount, double amount) {
+    if (!this->isActive || !destinationAccount.isActive) {
+        return false;
+    }
+
+    if (this->canWithdraw(amount)) {
+        this->balance -= amount;
+        destinationAccount.balance += amount;
+
+        this->addTransactionToHistory("Transfer Out: -" + std::to_string(amount) + " to " + destinationAccount.getAccountNumber());
+        destinationAccount.addTransactionToHistory("Transfer In: +" + std::to_string(amount) + " from " + this->getAccountNumber());
+        return true;
+    }
+    return false;
+}
+
+void Account::setOverdraftLimit(double limit) {
+    if (limit >= 0) {
+        this->overdraftLimit = limit;
+    }
+}
+
+double Account::getOverdraftLimit() const {
+    return overdraftLimit;
+}
+
+void Account::applyInterest(double rate) {
+    if (!isActive || rate <= 0) return;
+    double interest = balance * (rate / 100.0);
+    if (interest > 0) {
+        deposit(interest);
+        transactionHistory.pop_back(); 
+        addTransactionToHistory("Interest applied: +" + std::to_string(interest));
+    }
+}
+
+void Account::applyMonthlyFee(double fee) {
+    if (!isActive || fee <= 0) return;
+    withdraw(fee);
+    transactionHistory.pop_back(); 
+    addTransactionToHistory("Monthly fee applied: -" + std::to_string(fee));
+}
+
+void Account::printTransactionHistory() const {
+    std::cout << "\n--- Transaction History for " << accountNumber << " ---" << std::endl;
+    for (const std::string& transaction : transactionHistory) {
+        std::cout << transaction << std::endl;
+    }
+    std::cout << "------------------------------------------" << std::endl;
+}
+
+void Account::clearTransactionHistory() {
+    transactionHistory.clear();
+    addTransactionToHistory("Transaction history cleared.");
+}
+
+void Account::printSummary() const {
+    std::cout << "\n--- Account Summary ---" << std::endl;
+    std::cout << "Owner: \t\t" << ownerName << std::endl;
+    std::cout << "Account #: \t" << accountNumber << std::endl;
+    std::cout << "Type: \t\t" << accountType << std::endl;
+    std::cout << "Status: \t" << (isActive ? "Active" : "Closed") << std::endl;
+    std::cout << "Balance: \t" << balance << std::endl;
+    std::cout << "Overdraft Limit: " << overdraftLimit << std::endl;
+    std::cout << "-----------------------" << std::endl;
+}
+
+bool Account::isOverdrawn() const {
+    return balance < 0;
+}
+
+bool Account::canWithdraw(double amount) const {
+    if (amount <= 0) return false;
+    return (balance + overdraftLimit) >= amount;
+}
+
+int Account::compare(Account& otherAccount) {
+    if (this->balance > otherAccount.balance) {
+        return 1;
+    } else if (this->balance < otherAccount.balance) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
